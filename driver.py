@@ -88,28 +88,13 @@ def cross(A, B):
 	return [a+b for a in A for b in B]
 
 
-def ac3(board):
+def ac3(board, theSquares, thePeers):
 	""" """
-	#print(board.dict,"-------")
-	digits   = "123456789"
-	rows     = "ABCDEFGHI"
-	cols     = digits
 
-
-	#List of all labeled "squares": 'A1', 'A2', ... ,'I9'
-	squares  = cross(rows, cols)
-
-	#List of "units", where a unit is a (column, row, box) that needs
-	# all diff numbers 1-9 in each of its squares
-	unitlist = ([cross(rows, c) for c in cols] +
-				[cross(r, cols) for r in rows] +
-	            [cross(rs, cs) for rs in ('ABC','DEF','GHI') for cs in ('123','456','789')])
-
-	#Dictionary to give all units that a particular square lives in
-	units = dict((s, [u for u in unitlist if s in u]) for s in squares)
+	#These copies are to avoid references and overwriting of squares and peers
+	squares = copy.deepcopy(theSquares)
+	peers = copy.deepcopy(thePeers)
 	
-	#Dictionary to tell you all "peers" of a given sqaure-- peers have to be different than the square
-	peers = dict((s, set(sum(units[s],[]))-set([s])) for s in squares)
 
 	queueOfArcs = Queue()
 
@@ -139,7 +124,6 @@ def ac3(board):
 			if len(domainI) == 0:
 				#print(domainI)
 				return False
-
 			peers[square].remove(peer)
 
 			for neighbor in peers[square]:
@@ -378,39 +362,77 @@ def assignmentComplete(board):
 
 
 
+def buildSquaresAndPeers():
+	"""Method to construct dictionaries for the squares and 
+	their respective peers on the sudoku board"""
+
+
+	digits   = "123456789"
+	rows     = "ABCDEFGHI"
+	cols     = digits
+
+
+	#List of all labeled "squares": 'A1', 'A2', ... ,'I9'
+	squares  = cross(rows, cols)
+
+	#List of "units", where a unit is a (column, row, box) that needs
+	# all diff numbers 1-9 in each of its squares
+	unitlist = ([cross(rows, c) for c in cols] +
+				[cross(r, cols) for r in rows] +
+	            [cross(rs, cs) for rs in ('ABC','DEF','GHI') for cs in ('123','456','789')])
+
+	#Dictionary to give all units that a particular square lives in
+	units = dict((s, [u for u in unitlist if s in u]) for s in squares)
+	
+	#Dictionary to tell you all "peers" of a given sqaure-- peers have to be different than the square
+	peers = dict((s, set(sum(units[s],[]))-set([s])) for s in squares)
+
+
+	return squares, peers
 
 
 
 
-
-"""Running 2"""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"""Runnning"""
-
+"""Run both methods, AC3 and Back-Tracking"""
 argList = sys.argv
 
-#inputBoard = argList[1]
-#print(len(inputBoard))
+squares, peers = buildSquaresAndPeers()
+
+#print(peers['A3'])
+
+
+
+
+with open("assignment4/sudokus_start.txt") as f:
+	for line in f:
+
+		boardString = line[0:81] #Necessary>???????????
+
+		board = Board(boardString)
+		board.setDictionary()
+
+		#print(board.dict)
+		ans = ac3(board, squares, peers)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# """Runnning"""
+
+# argList = sys.argv
+
+# #inputBoard = argList[1]
+# #print(len(inputBoard))
 
 
 
@@ -428,23 +450,23 @@ argList = sys.argv
 
 
 
-"""Test on total in file"""
+# """Test on total in file"""
 
 
-with open("assignment4/sudokus_start.txt") as f:
-	for line in f:
-		#print(line)
-		boardString = line[0:81]
-		#print(boardString,"\n")
-		#print(boardString)
-		#print(len(boardString))
-		#print(len(line))
+# with open("assignment4/sudokus_start.txt") as f:
+# 	for line in f:
+# 		#print(line)
+# 		boardString = line[0:81]
+# 		#print(boardString,"\n")
+# 		#print(boardString)
+# 		#print(len(boardString))
+# 		#print(len(line))
 
-		board = Board(boardString)
-		board.setDictionary()
+# 		board = Board(boardString)
+# 		board.setDictionary()
 
-		#print(board.dict)
-		ans = ac3(board)
+# 		#print(board.dict)
+# 		ans = ac3(board)
 
 
 
