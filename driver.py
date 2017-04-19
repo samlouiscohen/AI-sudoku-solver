@@ -2,6 +2,8 @@ import sys
 from Queue import *
 import copy
 
+#from lazyme.string import color_print
+
 """
 Notes:
 - 27 constraints to sudoku
@@ -24,7 +26,7 @@ Notes:
 
 """
 
-
+#SEARCH FOR '?'
 
 
 class Board:
@@ -94,7 +96,6 @@ def ac3(board, theSquares, thePeers):
 	#These copies are to avoid references and overwriting of squares and peers
 	squares = copy.deepcopy(theSquares)
 	peers = copy.deepcopy(thePeers)
-	
 
 	queueOfArcs = Queue()
 
@@ -108,7 +109,6 @@ def ac3(board, theSquares, thePeers):
 			queueOfArcs.put(arc)
 
 	#print(queueOfArcs.qsize())
-
 
 	while queueOfArcs.qsize() != 0:
 		arc = queueOfArcs.get()
@@ -139,7 +139,7 @@ def ac3(board, theSquares, thePeers):
 
 	for square in squares:
 		outBoard+=board.dict[square][0]
-	print(outBoard)
+	#print(outBoard)
 
 	return True
 
@@ -177,49 +177,29 @@ def revise(square, peer, board):
 	return revised
 
 
-	# #Check to see that the domains have different values-- allow for this combo
-	# for x in domainI:
-
-	# 	for y in domainJ:
-
-	# 		if y != x:
-	# 			revised = True
-	# 			#return revised
-
-
-
-
-
-	# 	#Got here so there are no different pairings between the two domains
-	# 	#There does not exist a y in the domain of J that is not equal to x
-
-	# 	#Delete x from domainI
-	# 	#print("y: ",y)
-
-
-	# 	#print(domainI)
-	# 	domainI.remove(x)
-	# 	#print(domainI)
-	# 	#xrevised = True
-
-	# 	return revised
-
-		
 
 
 
 
 
 
-
-
-
-def backTrackingSearch(board):
+def backTrackingSearch(board, theSquares, thePeers):
 	"""Returns a solution or failure """
-	return backTrack()
+
+	squares = copy.deepcopy(theSquares)
+	peers = copy.deepcopy(thePeers)
+	assignedSquareList, squareAnswers = setModifiableSquareList(board, theSquares)
+
+	#Collect originals set squares
+	origSquares = []
+	for i in squareAnswers:
+		if squareAnswers[i] != False:
+			origSquares.append(i)
+
+	return backTrack(board, squares, peers, assignedSquareList, squareAnswers, origSquares)
 
 
-def backTrack():
+def backTrack(board, squares, peers, currentlyAssigned1, squareAnswers1,origSquares):
 	"""
 	Algorithm:
 	Visit each empty cell and try the next possible value in the cells domain,
@@ -235,59 +215,173 @@ def backTrack():
 
 	"""
 
-	#Base Case: Return solution board if assignment worked and is complete
-	assignedBoard = assignmentComplete(board)
-	if assignedBoard:
-		return assignedBoard #a string representation of complete sudoku board
 
-	aSquare = getNextEmptySquare() 
-
-	domainOfSquare = board.dict[square]
+	currentlyAssigned = copy.deepcopy(currentlyAssigned1)
+	squareAnswers = copy.deepcopy(squareAnswers1)
 	
 
-	#----------------------------
+
+	#printCurrentState(board, squares, squareAnswers, origSquares)
+
+	#print("currAssign: ", currentlyAssigned)
+	#print("\n")
+	#Base Case: Return solution board if assignment worked and is complete
+	assignedBoard = assignmentComplete(board, squares, squareAnswers)
+	#print(squareAnswers)
+
+	#print(assignedBoard)
+	if assignedBoard:
+		#print(len(assignedBoard))
+		return assignedBoard #a string representation of complete sudoku board
+
+	#Should this be in some particular order???
+	aSquare = getNextEmptySquare(squares, currentlyAssigned) 
+	domainOfSquare = board.dict[aSquare]
+
 	for value in domainOfSquare:
-		#Assign this value to the square and see if contraints are violated
+		#Assign this value to the square-- otherwise a square is set to False
+		#Will show as true when assigned(any int other than 0 is true & range is 1-9)
+		currentlyAssigned[aSquare] = value
+		squareAnswers[aSquare] = value
 
-		#If any constraints with peers are violated, try next value
-		for peer in peers[aSquare]:
-			passThisPeer = False
+		#If conflict with this square value, try a new one
+		if assignmentConflict(board, aSquare, peers, value, squareAnswers):
+			#print("assignment conflict on:" + str(value) + ", for square: " + aSquare)
+			continue
+			
 
-			peerDomain = board.dict[peer]
+		else: #No conflicts with this assigned square value
+			#print("Pass with: " + str(value) + ", for square: " + aSquare) 
+			#Recursively call again to determine if this past assignement was
+			# the last needed to complete the board and start process of recursing back.
+			boardSolved = backTrack(board, squares, peers, currentlyAssigned, squareAnswers,origSquares)
+			
+			#if boardSolved != True:#==bool()
+				#print("hi:",boardSolved)
+			if boardSolved != False:#==bool()
+				#print("HYHYHYHYH00000000000000000000000000000")
+				return boardSolved
 
-			#needs to be at least one x != value to pass this peer constraint
-			for x in peerDomain:
+			#If we get here, then we thought some assigned value for square was
+			# good as there were no conflicts. However, this deep in the 
+			# recursive calls, we see that it eventually leads to a problem. 
+			#So clear this value from square and try another.
+			else:
+				#print(" ------------------------------GO BACK IN RECURSE!!!!!!!!!!!!!!!!!!!----------------------------------")
+				continue
 
-				if value != x:
-					passThisPeer = True
-					break
+	#If we try all values in domain of the square, and build off them and they
+	# all fail, then return failure.
+	#print("pls")
+	return False
 
-			if passThisPeer == False:
-				#Have to assign a new value to square and restart
+
+
+
+
+
+
+def assignmentConflict(board, square, peers, squareVal, squareAnswers):
+	"""Rewrite fucntion to not check against domains, but rather actual values"""
+
+	#Boolean to track if square has a conflict with a given peer
+	conflict = False
+
+	for peer in peers[square]:
+
+		if squareAnswers[peer] !=False:
+
+			#Fail if a set peer is the same value as the current used squareVal
+			if squareVal == squareAnswers[peer]:
+				return True
+
+	return False
+
+
+
+def assignmentConflict1(board, square, peers, squareVal):
+	"""Function to determine if the given value in the square conflicts with
+	 any of the squares peers.
+	 If this assignment leads to no conflicts, return False. Else, return True.
+	 """
+	#Boolean to track if square has a conflict with a given peer
+	conflict = False
+
+	if square == 'I8':
+		print("square: " + square +"with sqrVal: "+squareVal+ ", peers: "+str(peers[square]))
+		print("-----------------------------------------------------")
+		#return
+
+
+	"""THIS SHOULDNT CHECK DOMAIN BUT RATHER JUST STRAIGHT UP hardCoded VALUES"""
+
+	for peer in peers[square]:
+		conflict = True
+		peerDomain = board.dict[peer]
+
+		if peer == 'I9':
+			print("Peer: "+peer+"With domain: "+str(peerDomain))
+
+		for peerVal in peerDomain:
+
+			#If at least 1 peer domain value is different than the square val,
+			# then there is no conflict with this specific peer
+			# if square == 'I8':
+			# 	print("squareVal: " + str(squareVal) +", peerDomVal: "+str(peerVal))
+			if squareVal != peerVal:
+				if square == 'I8':
+
+					print("NOT EQUAL SO NO CONFLICT-- squareVal: " + str(squareVal) + ". With peer: "+str(peer)+", peerDomVal: "+str(peerVal))
+				conflict = False
 				break
-			else: #This peer satisfied binary constraint with the square
-				pass
+		
+		# if square == 'I8':
+		# 	exit()
+		#If there is a conflict with a single peer, return failure
+		if conflict:
+			print("assignment conflict on:" + str(squareVal) + ", for square: " + square + ", with: "+peer) 
+			return True
+
+	#If we iterated thru all peers and no conflicts, return success
+	return False
 
 
-
-
+#REMOVE SQAURES FROM PARAM LIST HERE, DNT need anymore
 def getNextEmptySquare(squares, assigned):
 	"""Return the first non-assigned square it iterates over."""
+	#print("Called get next empty square()")
+	#print(assigned)
 
-	for square in squares:
+	#Only want to iterate over things that werent initally set. 
+	#So shouldn't look through "squares" dictionary in general here.
+	for square in assigned:
 		if not assigned[square]:
 			return square
 
+		#print("thing:",assigned[square])
 
 
-def setModifiableSquareList(squares):
+	# for square in squares:
+	# 	#print(squares)
+
+	# 	print("square: ",square)
+	# 	print()
+	# 	if not assigned[square]:
+	# 		return square
+
+
+
+def setModifiableSquareList(board, squares):
 	"""
 	- Called once before other functions. Used to collect key values of
 	all squares that can be modified.
 	- Value is 'True' for 'assigned' and 'False' for 'not-assigned'.
 	- To be used for function 'getNextEmptySquare()'.
 	"""
+	#Assigned is a dictionary that only includes squares that can be modified (not originals)
 	assigned = dict()
+	#answerSquares includes everything
+	answerSquares = dict()
 
 	#Add only square slots that were NOT set in inital board config
 	for square in squares:
@@ -295,24 +389,51 @@ def setModifiableSquareList(squares):
 		if len(board.dict[square]) != 1:
 
 			assigned[square] = False
+			answerSquares[square] = False
+		else:
+			#print('\n---hhhhhghghghghghghghghhgghhg--------')
+			#print board.dict[square]
+			#print board.dict[square][0]
+			#print type(board.dict[square][0])
+			#This will always be a one element list, so safe to cast out to str
+			answerSquares[square] = board.dict[square][0]
 
-	return assigned
+	#print("---------HELLOOOO-----------------------------")
+	#print(answerSquares)
+	#print(len(answerSquares))
+	#print("---------HELLOOOO-----------------------------")
+	return assigned, answerSquares
 
 
 
-def assignmentComplete(board):
+def assignmentComplete(board, squares, assigned):
 	"""Returns true if every square has a single value filled in"""
 	boardAssignment = ""
+	#print assigned
 
-	for square in board:
-
-		squareDomain = board.dict[square]
-		
-		if len(squareDomain) != 1:
-			return False
-		boardAssignment += squareDomain[0]
+	for square in squares:
+		#print(square)
+		#print("HELLLL___________EEEEE____________OOOO____",assigned[square])
+		if assigned[square] == False:
+			return False 
+		else:
+			boardAssignment += assigned[square]
 
 	return boardAssignment
+
+
+	#Not modifying the domain in this algorithm, so below doesnt make sense
+
+	# for square in squares:
+
+	# 	squareDomain = board.dict[square]
+		
+	# 	if len(squareDomain) != 1:
+	# 		print(str(squareDomain)+" is len: " +str(len(squareDomain)))
+	# 		return False
+	# 	boardAssignment += squareDomain[0]
+
+	# return boardAssignment
 
 
 
@@ -366,11 +487,9 @@ def buildSquaresAndPeers():
 	"""Method to construct dictionaries for the squares and 
 	their respective peers on the sudoku board"""
 
-
 	digits   = "123456789"
 	rows     = "ABCDEFGHI"
 	cols     = digits
-
 
 	#List of all labeled "squares": 'A1', 'A2', ... ,'I9'
 	squares  = cross(rows, cols)
@@ -390,29 +509,71 @@ def buildSquaresAndPeers():
 
 	return squares, peers
 
+def printCurrentState(board, squares, assigned,origSquares):
+	"""Function to assist in debugging of the recursive calls by assembling and
+	printing the board configuration"""
+	
+	keyString = ""
+	boardstring = ""
+
+	for square in squares:
+		keyString+=square
+
+		if assigned[square] == False:
+			#color empties red
+			boardstring += '\x1b[0;30;41m'+"x"+ '\x1b[0m' + " "
+		else:
+			#print origSquares
+			if square in origSquares:
+				#print("7-1-1-1-1-1-1-1-1-1-1-==-==--=-=-=-=-=-=-=-=-=")
+				
+				boardstring += assigned[square] +  " "
+			else:
+				#color new green
+				boardstring += '\x1b[6;30;42m'+ assigned[square] + '\x1b[0m' +" "
+
+	print keyString
+	print boardstring
 
 
 
-"""Run both methods, AC3 and Back-Tracking"""
+
+
+
+"""----------Main method: Run both methods, AC3 and Back-Tracking----------"""
 argList = sys.argv
+board1 = Board(argList[1])
+board1.setDictionary()
 
+#Construct boards squares and peers for use in both methods
 squares, peers = buildSquaresAndPeers()
 
-#print(peers['A3'])
-
-
-
+#Call backTracking algorithm
+# ans1 = backTrackingSearch(board1, squares, peers)
+# print(ans1)
 
 with open("assignment4/sudokus_start.txt") as f:
 	for line in f:
-
 		boardString = line[0:81] #Necessary>???????????
-
 		board = Board(boardString)
 		board.setDictionary()
 
-		#print(board.dict)
-		ans = ac3(board, squares, peers)
+		ans1 = backTrackingSearch(board, squares, peers)
+		print(ans1)
+
+
+
+
+# with open("assignment4/sudokus_start.txt") as f:
+# 	for line in f:
+
+# 		boardString = line[0:81] #Necessary>???????????
+
+# 		board = Board(boardString)
+# 		board.setDictionary()
+
+# 		#print(board.dict)
+# 		ans = ac3(board, squares, peers)
 
 
 
